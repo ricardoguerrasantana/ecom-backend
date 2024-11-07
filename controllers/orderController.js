@@ -1,83 +1,83 @@
-const Order = require("../models/orderModel")
-const asyncHandler = require("express-async-handler")
+const Order = require('../models/Order');
+const AppError = require('../utils/appError');
+const catchAsync = require('../utils/catchAsync.js');
+
+// Create new order
+exports.createOrder = catchAsync(async (req, res) => {
+  const order = await Order.create(req.body);
+  
+  res.status(201).json({
+    status: 'success',
+    data: {
+      order
+    }
+  });
+});
 
 // Get all orders
-const getOrders = asyncHandler(async (req, res) => {
-  const orders = await Order.find({}).populate('user', 'id name');
-  res.json(orders);
+exports.getAllOrders = catchAsync(async (req, res) => {
+  const orders = await Order.find().populate('user').populate('products.product');
+  
+  res.status(200).json({
+    status: 'success',
+    results: orders.length,
+    data: {
+      orders
+    }
+  });
 });
 
-// Get order by ID
-const getOrderById = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id).populate('user', 'id name');
-  if (order) {
-    res.json(order);
-  } else {
-    res.status(404);
-    throw new Error('Order not found');
+// Get single order
+exports.getOrder = catchAsync(async (req, res, next) => {
+  const order = await Order.findById(req.params.id)
+    .populate('user')
+    .populate('products.product');
+
+  if (!order) {
+    return next(new AppError('No order found with that ID', 404));
   }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      order
+    }
+  });
 });
 
-// Create a new order
-const createOrder = asyncHandler(async (req, res) => {
-  const { orderItems, shippingAddress, paymentMethod, itemsPrice, taxPrice, shippingPrice, totalPrice } = req.body;
+// Update order status
+exports.updateOrderStatus = catchAsync(async (req, res, next) => {
+  const order = await Order.findByIdAndUpdate(
+    req.params.id,
+    { status: req.body.status },
+    {
+      new: true,
+      runValidators: true
+    }
+  );
 
-  if (orderItems && orderItems.length === 0) {
-    res.status(400);
-    throw new Error('No order items');
-    return;
-  } else {
-    const order = new Order({
-      orderItems,
-      user: req.user._id,
-      shippingAddress,
-      paymentMethod,
-      itemsPrice,
-      taxPrice,
-      shippingPrice,
-      totalPrice,
-    });
-
-    const createdOrder = await order.save();
-    res.status(201).json(createdOrder);
+  if (!order) {
+    return next(new AppError('No order found with that ID', 404));
   }
+
+  res.status(200).json({
+    status: 'success',
+    data: {
+      order
+    }
+  });
 });
 
-// Update an existing order
-const updateOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id);
+// Delete order
+exports.deleteOrder = catchAsync(async (req, res, next) => {
+  const order = await Order.findByIdAndDelete(req.params.id);
 
-  if (order) {
-    order.isPaid = req.body.isPaid || order.isPaid;
-    order.paidAt = req.body.paidAt || order.paidAt;
-    order.isDelivered = req.body.isDelivered || order.isDelivered;
-    order.deliveredAt = req.body.deliveredAt || order.deliveredAt;
-
-    const updatedOrder = await order.save();
-    res.json(updatedOrder);
-  } else {
-    res.status(404);
-    throw new Error('Order not found');
+  if (!order) {
+    return next(new AppError('No order found with that ID', 404));
   }
+
+  res.status(204).json({
+    status: 'success',
+    data: null
+  });
 });
-
-// Delete an order
-const deleteOrder = asyncHandler(async (req, res) => {
-  const order = await Order.findById(req.params.id);
-
-  if (order) {
-    await order.remove();
-    res.json({ message: 'Order removed' });
-  } else {
-    res.status(404);
-    throw new Error('Order not found');
-  }
-});
-
-module.exports = {
-  getOrders,
-  getOrderById,
-  createOrder,
-  updateOrder,
-  deleteOrder,
-};
